@@ -4,7 +4,7 @@ from typing import Iterable, List
 import streamlit as st
 from openai import OpenAI
 from surrealdb import Surreal
-
+from openai import RateLimitError, APIStatusError, APIConnectionError
 
 # ----------------------------
 # Config helpers
@@ -45,38 +45,32 @@ client = OpenAI(api_key=OPENAI_API_KEY)
 
 
 
+def get_secret(key: str, default=None):
+    if key in st.secrets:
+        return st.secrets[key]
+    import os
+    return os.getenv(key, default)
+
 @st.cache_resource
 def get_db():
     url = get_secret("SURREALDB_URL")
-    ns = get_secret("SURREALDB_NS", "chat")
-    dbname = get_secret("SURREALDB_DB", "chat")
+    ns = get_secret("SURREALDB_NS", "train")
+    dbname = get_secret("SURREALDB_DB", "train")
     user = get_secret("SURREALDB_USER")
     pw = get_secret("SURREALDB_PW")
-    token = get_secret("SURREALDB_TOKEN")  # optional (leave unset if not using)
 
     db = Surreal(url)
 
-    # Some SDK builds require connect(); others don't have it.
-    if hasattr(db, "connect"):
-        db.connect()
-
-    if token:
-        # Token auth path
-        db.authenticate(token)
-    else:
-        # Username/password path
-        db.signin({
-            "namespace": ns,
-            "database": dbname,
-            "username": user,
-            "password": pw,
-        })
-        db.use(ns, dbname)
-        db.query("RETURN 1;")
-
+    # IMPORTANT: DB-user signin includes namespace + database
+    db.signin({
+        "namespace": ns,
+        "database": dbname,
+        "username": user,
+        "password": pw,
+    })
     db.use(ns, dbname)
 
-    # Fail fast: proves endpoint + auth + ns/db are valid
+    # Fail fast: confirms connection + auth + ns/db
     db.query("RETURN 1;")
     return db
 
@@ -111,10 +105,21 @@ def split_text(text: str, chunk_size: int = 1200, overlap: int = 200) -> List[st
         i = max(j - overlap, i + 1)
     return [c.strip() for c in chunks if c.strip()]
 
-def embed_texts(texts: List[str]) -> List[List[float]]:
-    # Batch embeddings request
-    resp = client.embeddings.create(model=EMBED_MODEL, input=texts)
-    return [row.embedding for row in resp.data]
+
+
+def embed_texts(texts):
+    try:
+        resp = client.embeddings.create(model=EMBED_MODEL, input=texts)
+        return [row.embedding for row in resp.data]
+    except RateLimitError as e:
+        st.error(
+            "OpenAI API quota/billing issue (429 insufficient_quota). "
+            "This is separate from ChatGPT Plus. Add API billing/credits, then retry."
+        )
+        return None
+    except (APIConnectionError, APIStatusError) as e:
+        st.error(f"OpenAI API error: {e!r}")
+        return None
 
 def store_chunks(db: Surreal, chunks: List[str], source: str) -> None:
     vectors = embed_texts(chunks)
