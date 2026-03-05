@@ -141,7 +141,11 @@ def stream_answer(messages: List[dict]) -> Iterable[str]:
 st.set_page_config(page_title="Rugby Strength Coach (RAG)", layout="wide")
 st.title("Rugby Strength Coach (SurrealDB + OpenAI)")
 
-db = get_db()
+try:
+    db = get_db()
+except Exception as e:
+    st.error(f"SurrealDB connection failed: {e!r}")
+    st.stop()
 ensure_schema(db)
 
 with st.sidebar:
