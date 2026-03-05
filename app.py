@@ -43,19 +43,33 @@ client = OpenAI(api_key=OPENAI_API_KEY)
 # DB connection (cached)
 # ----------------------------
 
-@st.cache_resource
 
 
 @st.cache_resource
 def get_db():
-    db = Surreal(os.environ["SURREALDB_URL"])  # or your get_secret(...)
-    db.signin({
-        "username": os.environ["SURREALDB_USER"],
-        "password": os.environ["SURREALDB_PW"],
-    })
-    db.use(os.environ.get("SURREALDB_NS", "train"), os.environ.get("SURREALDB_DB", "train"))
+    url = get_secret("SURREALDB_URL")
+    ns = get_secret("SURREALDB_NS", "chat")
+    dbname = get_secret("SURREALDB_DB", "chat")
+    user = get_secret("SURREALDB_USER")
+    pw = get_secret("SURREALDB_PW")
+    token = get_secret("SURREALDB_TOKEN")  # optional (leave unset if not using)
 
-    # Fail fast (and proves auth + ns/db work)
+    db = Surreal(url)
+
+    # Some SDK builds require connect(); others don't have it.
+    if hasattr(db, "connect"):
+        db.connect()
+
+    if token:
+        # Token auth path
+        db.authenticate(token)
+    else:
+        # Username/password path
+        db.signin({"username": user, "password": pw})
+
+    db.use(ns, dbname)
+
+    # Fail fast: proves endpoint + auth + ns/db are valid
     db.query("RETURN 1;")
     return db
 
