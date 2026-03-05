@@ -65,7 +65,14 @@ def get_db():
         db.authenticate(token)
     else:
         # Username/password path
-        db.signin({"username": user, "password": pw})
+        db.signin({
+            "namespace": ns,
+            "database": dbname,
+            "username": user,
+            "password": pw,
+        })
+        db.use(ns, dbname)
+        db.query("RETURN 1;")
 
     db.use(ns, dbname)
 
