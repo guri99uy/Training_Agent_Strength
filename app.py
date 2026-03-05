@@ -5,6 +5,7 @@ import streamlit as st
 from openai import OpenAI
 from surrealdb import Surreal
 
+
 # ----------------------------
 # Config helpers
 # ----------------------------
@@ -43,9 +44,7 @@ client = OpenAI(api_key=OPENAI_API_KEY)
 # ----------------------------
 
 @st.cache_resource
-from surrealdb import Surreal
-import streamlit as st
-import os
+
 
 @st.cache_resource
 def get_db():
