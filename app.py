@@ -43,11 +43,21 @@ client = OpenAI(api_key=OPENAI_API_KEY)
 # ----------------------------
 
 @st.cache_resource
-def get_db() -> Surreal:
-    db = Surreal(SURREAL_URL)
-    db.connect()
-    db.signin({"username": SURREAL_USER, "password": SURREAL_PASS})
-    db.use(SURREAL_NS, SURREAL_DB)
+from surrealdb import Surreal
+import streamlit as st
+import os
+
+@st.cache_resource
+def get_db():
+    db = Surreal(os.environ["SURREALDB_URL"])  # or your get_secret(...)
+    db.signin({
+        "username": os.environ["SURREALDB_USER"],
+        "password": os.environ["SURREALDB_PW"],
+    })
+    db.use(os.environ.get("SURREALDB_NS", "train"), os.environ.get("SURREALDB_DB", "train"))
+
+    # Fail fast (and proves auth + ns/db work)
+    db.query("RETURN 1;")
     return db
 
 def ensure_schema(db: Surreal) -> None:
